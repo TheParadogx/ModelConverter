@@ -441,10 +441,23 @@ namespace conv
             }
 
             // 書き出し
+            Binfmt::MeshEntry me{};
+            SafeCopy(me.name, mesh->mName.C_Str());
+            me.vertexCount = vCount;
+            me.indexCount = iCount;
+            me.materialIndex = mesh->mMaterialIndex;
+            me.use32BitIndex = use32 ? 1u : 0u;
+            Write(fs, me);
+            WriteVec(fs, verts);
+            if (use32) WriteVec(fs, idx32); else WriteVec(fs, idx16);
 
+            Log("  [Mesh] " + std::string(mesh->mName.C_Str()) +
+                " vtx=" + std::to_string(vCount) +
+                " idx=" + std::to_string(iCount));
 
         }
 
+        Log("[BIN] 書き出し完了: " + outputPath.string());
         return true;
     }
 
