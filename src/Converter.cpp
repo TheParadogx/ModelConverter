@@ -99,9 +99,6 @@ namespace
         aiQuaternion::Interpolate(result, keys[lo].mValue, keys[hi].mValue, alpha);
         return result.Normalize();
     }
-
-
-
 }
 
 
@@ -116,7 +113,7 @@ namespace conv
     conv::ConvertResult conv::ModelConverter::Convert(const std::filesystem::path& inputPath, const std::filesystem::path& outputDir, const ConverterOptions& options)
     {
         mOptions = options;
-        conv::ConvertResult result;
+        conv::ConvertResult res;
 
         namespace fs = std::filesystem;
         fs::path outDir = outputDir.empty() ? inputPath.parent_path() : outputDir;
@@ -124,7 +121,7 @@ namespace conv
         {
             std::error_code ec;
             fs::create_directories(outDir, ec);
-            if (ec) { result.errorMessage = "directory error"; return result; }
+            if (ec) { res.errorMessage = "directory error"; return res; }
         }
 
         const std::string stem = inputPath.stem().string();
@@ -132,10 +129,16 @@ namespace conv
         importer.SetPropertyFloat(AI_CONFIG_GLOBAL_SCALE_FACTOR_KEY, mOptions.scale);
 
         const ::aiScene* scene = importer.ReadFile(inputPath.string(), BuildPostProcessFlags());
-        if (!scene || !scene->mRootNode || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE))
+        if ((scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) && scene->mNumAnimations == 0 && scene->mNumMeshes == 0)
         {
-            result.errorMessage = "Assimp load failed";
-            return result;
+            res.errorMessage = "Assimp Error: Scene is incomplete and contains no mesh or animation.";
+            return res;
+        }
+
+        if (!scene->mRootNode)
+        {
+            res.errorMessage = "Scene has no root node.";
+            return res;
         }
 
         // ボーン収集
@@ -143,11 +146,23 @@ namespace conv
 
         // bin書き出し
         fs::path binPath = outDir / (stem + ".bin");
-        if (!WriteBin(scene, binPath))
+
+        if (scene->mNumMeshes > 0)
         {
-            result.errorMessage = "bin failed";
-            return result;
+            if (!WriteBin(scene, binPath))
+            {
+                res.errorMessage = "bin failed";
+                return res;
+            }
+            res.binPath = binPath.string();
+            res.hasMesh = true;
         }
+        else
+        {
+            res.binPath = "";
+            res.hasMesh = false;
+        }
+
 
         // anm書き出し
         bool hasAnim = (scene->mNumAnimations > 0);
@@ -157,22 +172,22 @@ namespace conv
             anmPath = outDir / (stem + ".anm");
             if (!WriteAnm(scene, anmPath))
             {
-                result.errorMessage = "anm failed";
-                return result;
+                res.errorMessage = "anm failed";
+                return res;
             }
         }
 
-        result.success = true;
-        result.hasMesh = scene->mNumMeshes > 0;
-        result.hasAnimation = hasAnim;
-        result.hasSkeleton = !mBones.empty();
-        result.meshCount = (int)scene->mNumMeshes;
-        result.materialCount = (int)scene->mNumMaterials;
-        result.boneCount = (int)mBones.size();
-        result.animationCount = (int)scene->mNumAnimations;
-        result.binPath = binPath.string();
-        result.anmPath = hasAnim ? anmPath.string() : "";
-        return result;
+        res.success = true;
+        res.hasMesh = scene->mNumMeshes > 0;
+        res.hasAnimation = hasAnim;
+        res.hasSkeleton = !mBones.empty();
+        res.meshCount = (int)scene->mNumMeshes;
+        res.materialCount = (int)scene->mNumMaterials;
+        res.boneCount = (int)mBones.size();
+        res.animationCount = (int)scene->mNumAnimations;
+        res.binPath = binPath.string();
+        res.anmPath = hasAnim ? anmPath.string() : "";
+        return res;
     }
 
     unsigned conv::ModelConverter::BuildPostProcessFlags() const

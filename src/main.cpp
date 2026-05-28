@@ -97,8 +97,8 @@ static Args ParseArgs(int argc, char* argv[])
 #ifdef _DEBUG
 
 // デバック用のパス
-static constexpr const char* DEBUG_INPUT_PATH = R"(C:\Models\character.fbx)";
-static constexpr const char* DEBUG_OUTPUT_DIR = R"(C:\Models\output)";
+static constexpr const char* DEBUG_INPUT_PATH = R"(Assets/Animation/Attack_A.fbx)";
+static constexpr const char* DEBUG_OUTPUT_DIR = R"(Assets/Output)";
 
 static conv::ConverterOptions MakeDebugOptions()
 {
