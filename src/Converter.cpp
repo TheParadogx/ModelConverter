@@ -582,6 +582,17 @@ namespace conv
 
     void conv::ModelConverter::Log(const std::string& msg) const
     {
+        if (mOptions.verbose)
+        {
+            if (mLogCb)
+            {
+                mLogCb(msg);
+            }
+            else
+            {
+                std::cout << msg << "\n";
+            }
+        }
     }
 
     void conv::ModelConverter::AiMatToRowMajor(float dst[4][4], const ::aiMatrix4x4& src)
