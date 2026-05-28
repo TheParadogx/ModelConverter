@@ -491,8 +491,92 @@ namespace conv
             entry.isBaked = doBake ? 1u : 0u;
             entry.bakeFrameRate = doBake ? mOptions.bakeFPS : 0.0f;
             Write(fs, entry);
+
+            if (doBake)
+            {
+                // ベイク方式
+                // index = (int)(timeSec * bakeFrameRate) でフレーム直引き で二分探索不要
+                const float fps = mOptions.bakeFPS;
+                const int   frameCount = (int)std::ceil(durationSec * fps) + 1;
+
+                Log("  [Anim/Bake] " + std::string(anim->mName.C_Str()) +
+                    " dur=" + std::to_string(durationSec) +
+                    "s fps=" + std::to_string((int)fps) +
+                    " frames=" + std::to_string(frameCount));
+
+                for (unsigned ci = 0; ci < anim->mNumChannels; ++ci)
+                {
+                    const ::aiNodeAnim* ch = anim->mChannels[ci];
+
+                    Anmfmt::BakedChannelEntry bce{};
+                    SafeCopy(bce.boneName, ch->mNodeName.C_Str());
+                    bce.frameCount = (uint32_t)frameCount;
+                    Write(fs, bce);
+
+                    for (int fi = 0; fi < frameCount; ++fi)
+                    {
+                        float  timeSec = fi / fps;
+                        double timeTicks = timeSec * tps;
+
+                        ::aiVector3D  pos = EvalVec3(ch->mPositionKeys, ch->mNumPositionKeys, timeTicks);
+                        ::aiQuaternion rot = EvalQuat(ch->mRotationKeys, ch->mNumRotationKeys, timeTicks);
+                        ::aiVector3D  scale = EvalVec3(ch->mScalingKeys, ch->mNumScalingKeys, timeTicks);
+
+                        Anmfmt::BakedFrame frame{};
+                        frame.translation = { pos.x,   pos.y,   pos.z };
+                        frame.rotation = { rot.x,   rot.y,   rot.z, rot.w };
+                        frame.scale = { scale.x, scale.y, scale.z };
+                        Write(fs, frame);
+                    }
+                }
+            }
+            else
+            {
+                // スパース方式：キーをそのまま保存
+                Log("  [Anim/Sparse] " + std::string(anim->mName.C_Str()) +
+                    " dur=" + std::to_string(durationSec) + "s" +
+                    " ch=" + std::to_string(anim->mNumChannels));
+
+                for (unsigned ci = 0; ci < anim->mNumChannels; ++ci)
+                {
+                    const ::aiNodeAnim* ch = anim->mChannels[ci];
+                    Anmfmt::ChannelEntry ce{};
+                    SafeCopy(ce.boneName, ch->mNodeName.C_Str());
+                    ce.posKeyCount = ch->mNumPositionKeys;
+                    ce.rotKeyCount = ch->mNumRotationKeys;
+                    ce.scaleKeyCount = ch->mNumScalingKeys;
+                    Write(fs, ce);
+
+                    for (unsigned ki = 0; ki < ch->mNumPositionKeys; ++ki)
+                    {
+                        const ::aiVectorKey& k = ch->mPositionKeys[ki];
+                        Anmfmt::PosKey pk{};
+                        pk.time = (float)(k.mTime / tps);
+                        pk.value = { k.mValue.x, k.mValue.y, k.mValue.z };
+                        Write(fs, pk);
+                    }
+                    for (unsigned ki = 0; ki < ch->mNumRotationKeys; ++ki)
+                    {
+                        const ::aiQuatKey& k = ch->mRotationKeys[ki];
+                        Anmfmt::RotKey rk{};
+                        rk.time = (float)(k.mTime / tps);
+                        rk.value = { k.mValue.x, k.mValue.y, k.mValue.z, k.mValue.w };
+                        Write(fs, rk);
+                    }
+                    for (unsigned ki = 0; ki < ch->mNumScalingKeys; ++ki)
+                    {
+                        const ::aiVectorKey& k = ch->mScalingKeys[ki];
+                        Anmfmt::ScaleKey sk{};
+                        sk.time = (float)(k.mTime / tps);
+                        sk.value = { k.mValue.x, k.mValue.y, k.mValue.z };
+                        Write(fs, sk);
+                    }
+
+                }
+            }
         }
 
+        Log("[ANM] 書き出し完了: " + outputPath.string());
         return true;
     }
 
