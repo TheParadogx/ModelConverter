@@ -382,11 +382,70 @@ namespace conv
             }
 
             // スキニング：各頂点を収集（index,weight）
+            using WList = std::vector<std::pair<uint32_t, float>>;
+            std::vector<WList> skin(vCount);
+            for (unsigned bi = 0; bi < mesh->mNumBones; ++bi)
+            {
+                const ::aiBone* bone = mesh->mBones[bi];
+                auto it = mBoneIndexMap.find(bone->mName.C_Str());
+                if (it == mBoneIndexMap.end()) continue;
+                uint32_t gIdx = (uint32_t)it->second;
+                for (unsigned wi = 0; wi < bone->mNumWeights; ++wi)
+                {
+                    uint32_t vid = bone->mWeights[wi].mVertexId;
+                    float    w = bone->mWeights[wi].mWeight;
+                    if (vid < vCount) skin[vid].emplace_back(gIdx, w);
+                }
+            }
+            for (uint32_t vi = 0; vi < vCount; ++vi) 
+            {
+                auto& list = skin[vi];
+                std::sort(list.begin(), list.end(),
+                    [](const auto& a, const auto& b) { return a.second > b.second; });
+                float tw = 0.0f;
+                int cnt = std::min((int)list.size(), 4);
+                for (int b = 0; b < cnt; ++b)
+                {
+                    // Fix3: uint8_t に変換 (0〜254, 255 は無効インデックス用に予約可)
+                    verts[vi].boneIndices[b] = (uint8_t)std::min(list[b].first, 254u);
+                    verts[vi].boneWeights[b] = list[b].second;
+                    tw += list[b].second;
+                }
+                if (tw > 1e-6f)
+                {
+                    for (int b = 0; b < cnt; ++b) verts[vi].boneWeights[b] /= tw;
+                }
+            }
+
+            // インデックス
+            const uint32_t iCount = mesh->mNumFaces * 3;
+            std::vector<uint32_t> idx32;
+            std::vector<uint16_t> idx16;
+            if (use32)
+            {
+                idx32.reserve(iCount); 
+            }
+            else
+            {
+                idx16.reserve(iCount);
+            }
+            for (unsigned fi = 0; fi < mesh->mNumFaces; ++fi) 
+            {
+                assert(mesh->mFaces[fi].mNumIndices == 3);
+                for (unsigned ii = 0; ii < 3; ++ii)
+                {
+                    uint32_t idx = mesh->mFaces[fi].mIndices[ii];
+                    if (use32) idx32.push_back(idx);
+                    else       idx16.push_back((uint16_t)idx);
+                }
+            }
+
+            // 書き出し
 
 
         }
 
-        return false;
+        return true;
     }
 
     bool ModelConverter::WriteAnm(const ::aiScene* scene, const std::filesystem::path& outputPath)
