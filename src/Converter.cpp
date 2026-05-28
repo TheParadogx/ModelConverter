@@ -441,7 +441,7 @@ namespace conv
             }
 
             // 書き出し
-            Binfmt::MeshEntry me{};
+            Binfmt::MeshEntry me = {};
             SafeCopy(me.name, mesh->mName.C_Str());
             me.vertexCount = vCount;
             me.indexCount = iCount;
@@ -461,9 +461,39 @@ namespace conv
         return true;
     }
 
+    // .anmの出力
     bool ModelConverter::WriteAnm(const ::aiScene* scene, const std::filesystem::path& outputPath)
     {
-        return false;
+        if (scene->mNumAnimations == 0) return true;
+
+        std::ofstream fs(outputPath, std::ios::binary | std::ios::trunc);
+        if (!fs.is_open()) return false;
+
+        const bool doBake = (mOptions.bakeFPS > 0.0f);
+
+        Anmfmt::AnmHeader header = {};
+        std::memcpy(header.magic, Anmfmt::MAGIC, 4);
+        header.version = Anmfmt::VERSION;
+        header.animationCount = scene->mNumAnimations;
+        Write(fs, header);
+
+        for (unsigned ai = 0; ai < scene->mNumAnimations; ++ai)
+        {
+            const aiAnimation* anim = scene->mAnimations[ai];
+            double tps = (anim->mTicksPerSecond > 0.0) ? anim->mTicksPerSecond : 25.0;
+            double durationTicks = anim->mDuration;
+            float  durationSec = (float)(durationTicks / tps);
+
+            Anmfmt::AnimEntry entry{};
+            SafeCopy(entry.name, anim->mName.C_Str());
+            entry.duration = durationSec;
+            entry.channelCount = anim->mNumChannels;
+            entry.isBaked = doBake ? 1u : 0u;
+            entry.bakeFrameRate = doBake ? mOptions.bakeFPS : 0.0f;
+            Write(fs, entry);
+        }
+
+        return true;
     }
 
     void conv::ModelConverter::Log(const std::string& msg) const

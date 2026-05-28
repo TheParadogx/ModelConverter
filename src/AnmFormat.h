@@ -21,6 +21,18 @@ namespace Anmfmt
 	};
 	static_assert(sizeof(AnmHeader) == 12, "AnmHeader size mismatch");
 
+	// アニメーションエントリー
+	struct AnimEntry
+	{
+		char     name[64];
+		float    duration;           // アニメーション総時間 (秒)
+		uint32_t channelCount;
+		uint32_t isBaked;            // 0 = スパースキー, 1 = ベイク済み均等フレーム
+		float    bakeFrameRate;      // isBaked==1 時のFPS (例: 30.0, 60.0)
+		// isBaked==0 時は 0.0
+	};
+	static_assert(sizeof(AnimEntry) == 80, "AnimEntry size mismatch");
+
 	// スパースキー方式：isBaked == 0
 	struct ChannelEntry
 	{
