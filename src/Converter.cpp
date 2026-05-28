@@ -107,6 +107,11 @@ namespace
 
 namespace conv
 {
+    void ModelConverter::SetLogCallback(LogCallback cb)
+    {
+        mLogCb = cb;
+    }
+
     // コンバート
     conv::ConvertResult conv::ModelConverter::Convert(const std::filesystem::path& inputPath, const std::filesystem::path& outputDir, const ConverterOptions& options)
     {
